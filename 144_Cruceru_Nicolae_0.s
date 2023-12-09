@@ -67,7 +67,7 @@ main:
     # loop care citeste toate celulele vii
 et_loop_citire:    
     cmp $0, %ecx
-    je et_modificare_matrice
+    je et_citire_iterations
 
     # ecx e modificat de apelurile lui scanf
     mov %ecx, rezervaEcx
@@ -97,7 +97,6 @@ et_loop_citire:
     movl columns, %eax 
     mull lineIndex
     addl columnIndex, %eax 
-    decl %eax
 
     # duh
     movl $1, (%edi, %eax, 4)
@@ -108,6 +107,7 @@ et_loop_citire:
 
     jmp et_loop_citire
 
+et_citire_iterations:
     # dupa ce citim celulele vii trebuie sa citim nr de iteratii 
     pushl $iterations
     pushl $formatScanf
@@ -126,14 +126,14 @@ et_loop_citire:
     movl iterations, %ecx
 et_modificare_matrice:
     cmp $0, %ecx
-    je undeva
-    movl %ecx, rezervaEcx
+    je afisare_matrice
+    # movl %ecx, rezervaEcx
 
     movl $1, %ebx
     lea matrix, %edi 
     et_modificare_linii: 
         cmp actualLines, %ebx 
-        je et_modificare_matrice_final        
+        jg et_modificare_matrice_final        
 
         movl $1, %ebp
         et_modificare_coloane: 
@@ -144,17 +144,17 @@ et_modificare_matrice:
             # 0x0   Traversam vecinii celulei plecand din punctul din stanga sus, in ordinea acelor de ceasornic 
             # 000
             cmp actualColumns, %ebp
-            je et_modificare_linii_final
+            jg et_modificare_linii_final
 
             # calculam pozitia din memorie a celulei curente 
             movl columns, %eax
             mull %ebx 
             addl %ebp, %eax 
-            decl %eax 
+            # decl %eax 
 
             # ca sa ajungem in coltul din stanga sus trebuie eax -= (columns) - 1
             subl columns, %eax 
-            decl columns
+            decl %eax
 
             # numarul de vecini trebuie sa fie 0
             movl $0, neighboursAlive 
@@ -229,6 +229,9 @@ et_modificare_matrice:
 
             # cazul in care celula devine 0 (cand nr de vecini != 2/3)
             movl $0, (%edi, %eax, 4)
+            
+            incl %ebp 
+            jmp et_modificare_coloane
 
             et_cazul_trei:
             movl $1, (%edi, %eax, 4)
@@ -256,7 +259,6 @@ et_modificare_matrice:
         incl %ebx
         jmp et_modificare_linii
 
-    
 et_modificare_matrice_final:
     # trebuie ca tot continutul din copyMatrix sa fie COPIAT in matrix 
     # cum am terminat cu liniile si coloanele putem folosi %ebx si %ebp pt copierea asta 
@@ -273,36 +275,31 @@ et_modificare_matrice_final:
             jg finish_copiere_coloane
 
             movl columns, %eax 
-            mull rezervaEcx
-            addl %ebx, %eax 
-            decl %eax
+            mull %ebx
+            addl %ebp, %eax 
 
-            movl (%edi, %eax, 4), %ebp
+            movl (%edi, %eax, 4), %esi
 
             lea matrix, %edi 
 
-            movl %ebp, (%edi, %eax, 4)
+            movl %esi, (%edi, %eax, 4)
 
             lea copyMatrix, %edi
             
-            incl %ebx
+            incl %ebp
             jmp copiere_coloane
 
         # se termina copiere coloana 
         finish_copiere_coloane: 
 
-        incl %ecx 
+        incl %ebx 
         jmp copiere_linii
 
 
 terminare_copiere: 
-    mov rezervaEcx, %ecx 
-    incl %ecx 
+    # mov rezervaEcx, %ecx 
+    decl %ecx 
     jmp et_modificare_matrice
-
-
-undeva: 
-
 
 afisare_matrice:
     mov $1, %ecx
@@ -310,7 +307,7 @@ afisare_matrice:
 
     afisare_linii:
         cmp actualLines, %ecx 
-        jg terminare_afisare 
+        jg et_exit 
 
         mov %ecx, rezervaEcx
         
@@ -322,7 +319,6 @@ afisare_matrice:
             movl columns, %eax 
             mull rezervaEcx
             addl %ebx, %eax 
-            decl %eax
 
             movl (%edi, %eax, 4), %ebp
 
@@ -361,9 +357,6 @@ afisare_matrice:
         movl rezervaEcx, %ecx 
         incl %ecx 
         jmp afisare_linii
-
-
-terminare_afisare:
             
 et_exit: 
     mov $1, %eax 
