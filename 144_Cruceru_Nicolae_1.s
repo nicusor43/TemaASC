@@ -379,7 +379,7 @@ et_decrypt:
     # Altfel scade 48 
     movb (%edi, %ebx, 1), %cl
 
-    cmpb $57, %cl
+    cmpb $58, %cl
     jl et_scade_sa_fie_numar
 
     subl $55, (%edi, %ebx, 1)
