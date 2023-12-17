@@ -3,6 +3,7 @@
     matrix: .zero 1600
     copyMatrix: .zero 1600
     bitArray: .zero 1600
+    decryptArray: .space 1600
 
     lines: .space 4
     columns: .space 4
@@ -35,9 +36,11 @@
     lengthCheie: .space 4
     rezervaEdx: .space 4
     nrLoopEncryption: .space 4
+    charDeAfisat: .space 4
 
+    charPrintf: .asciz "%c"
     hexaPrintf: .asciz "0x"
-    hexaScanf: .asciz "%x"
+    hexaScanf: .asciz "%X"
     stringScanf: .asciz "%s"
     formatScanf: .asciz "%d"
     newLine: .asciz "\n"
@@ -144,8 +147,8 @@ et_citire_iterations:
     cmpl $0, %ebx
     je et_citire_criptare
 
-    pushl $numarMesaj
-    pushl $hexaScanf
+    pushl $decryptArray
+    pushl $stringScanf
     call scanf 
     popl %ebx 
     popl %ebx
@@ -341,6 +344,7 @@ et_modificare_matrice_final:
 
         incl %ebx 
         jmp copiere_linii
+        
 
 
 terminare_copiere: 
@@ -355,9 +359,140 @@ et_continue_encryption:
     cmpl $0, %ebx 
     je et_encrypt
 
+# Pentru decriptare facem exact inversul a ceea ce am facut pentru criptare. Vom citi valoarea hexadecimala intr-un string (!), 
+# astfel fiecare valoare din hexa va fi un char si ne va fi relativ usor de transformat intr-un sir precum bitArray de la decriptare, 
+# in care fiecare bit e de fapt reprezentat ca un byte (astfel facandu-se xor-area). 
 et_decrypt:
+    # Pt fiecare element din decryptArray (in afara de primele 2 "0x"), le vom transforma in bitArray in forma lor potrivita 
+    lea decryptArray, %edi 
+    # index decryptArray
+    movl $2, %ebx
+    # index bitArray
+    movl $0, %edx
+    et_hexa_to_bit_array:
+    cmpl $0, (%edi, %ebx, 1)
+    je et_hexa_to_bit_array_final
+
+    lea decryptArray, %edi
+
+    # DACA CIFRA DIN NUMAR E A..F scade drc 55 (transformare ASCII -> hexa)
+    # Altfel scade 48 
+    movb (%edi, %ebx, 1), %cl
+
+    cmpb $57, %cl
+    jl et_scade_sa_fie_numar
+
+    subl $55, (%edi, %ebx, 1)
+    movb (%edi, %ebx, 1), %al
+    jmp et_gata_scaderea
+
+    et_scade_sa_fie_numar:
+    subl $48, (%edi, %ebx, 1)
+    movb (%edi, %ebx, 1), %al
 
 
+    et_gata_scaderea:
+    # movb (%edi, %ebx, 1), %al
+    movl $3, %ecx
+    et_decrypt_char_to_bit:
+    cmpl $0, %ecx 
+    jl et_decrypt_char_to_bit_final 
+
+
+    movb $1, %al 
+    shl %ecx, %al
+    and (%edi, %ebx, 1), %al 
+    shr %ecx, %al
+
+    lea bitArray, %edi
+    movb %al, (%edi, %edx, 1)
+    lea decryptArray, %edi
+    
+    decl %ecx
+    incl %edx
+
+    jmp et_decrypt_char_to_bit
+    et_decrypt_char_to_bit_final:
+
+    incl %ebx
+
+    jmp et_hexa_to_bit_array
+
+    et_hexa_to_bit_array_final:
+    movl %edx, lengthMesaj
+
+    # Impartim lungimea mesajului la lungimea cheii 
+    # Calculam lungimea cheii
+    movl columns, %eax
+    movl lines, %ecx
+    movl $0, %edx
+    mull %ecx 
+    movl %eax, lengthCheie
+
+     # in ebx o sa fie indexul cheii 
+    movl $0, %ecx
+    movl $0, %ebx
+    et_decriptare_mesaj:
+    cmpl lengthMesaj, %ecx
+    je et_decriptare_mesaj_final
+
+    cmpl lengthCheie, %ebx
+    jne et_decriptare_sari_cheie_zero
+    movl $0, %ebx
+    et_decriptare_sari_cheie_zero:
+
+        # dl pt mesaj
+        # al pt cheie 
+        lea matrix, %edi 
+        movb (%edi, %ebx, 4), %dl
+        lea bitArray, %edi
+        movb (%edi, %ecx, 1), %al
+        xorb %al, %dl 
+        movb %dl, (%edi, %ecx, 1)
+
+        incl %ecx
+        incl %ebx 
+        jmp et_decriptare_mesaj
+
+    et_decriptare_mesaj_final:
+
+    lea bitArray, %edi
+    movl $0, %ebx
+    et_decriptare_transformare_afisare:
+    cmpl lengthMesaj, %ebx 
+    je et_decriptare_transformare_afisare_final
+
+    movl $7, %ecx
+    movl $0, charDeAfisat
+    et_decriptare_bitul_urmator: 
+    cmpl $0, %ecx
+    jl et_decriptare_bitul_urmator_final
+
+    movl $1, %eax
+    and (%edi, %ebx, 1), %eax
+    sal %ecx, %eax 
+    addl %eax, charDeAfisat
+
+    decl %ecx 
+    incl %ebx 
+
+    jmp et_decriptare_bitul_urmator
+
+    et_decriptare_bitul_urmator_final:  
+
+    push charDeAfisat
+    call putchar
+    popl %ebp
+
+    pushl $0
+    call fflush
+    popl %ebp
+
+    jmp et_decriptare_transformare_afisare
+
+    et_decriptare_transformare_afisare_final:
+
+    jmp et_exit
 # Pentru criptare se va folosi cea mai wildly inefficient solutie posibila, copyMatrix va deveni reprezentarea binara 
 # a mesajului, eg pentru mesajul "parola", p se va transforma in primii 8 bytes ai copyMatrix (am mai zis ca e ineficient, nu?)
 et_encrypt:
@@ -443,21 +578,20 @@ et_encrypt:
     movl $0, %ebx
     et_sari_cheie_zero:
 
-    # eax pt mesaj
-    # edx pt cheie 
-    lea matrix, %edi 
-    movb (%edi, %ebx, 4), %dl
-    lea bitArray, %edi
-    movb (%edi, %ecx, 1), %al
-    xor %al, %dl 
-    movb %dl, (%edi, %ecx, 1)
+        # eax pt mesaj
+        # edx pt cheie 
+        lea matrix, %edi 
+        movb (%edi, %ebx, 4), %dl
+        lea bitArray, %edi
+        movb (%edi, %ecx, 1), %al
+        xorb %al, %dl 
+        movb %dl, (%edi, %ecx, 1)
 
-    incl %ecx
-    incl %ebx 
-    jmp et_criptare_mesaj
+        incl %ecx
+        incl %ebx 
+        jmp et_criptare_mesaj
 
     et_criptare_mesaj_final:
-
 
     pushl $hexaPrintf
     call printf
@@ -473,27 +607,38 @@ et_encrypt:
     cmpl lengthMesaj, %ebx
     je et_afisare_hexa_final
 
-    movl (%edi, %ebx, 4), %ecx
+    movl $3, %ecx 
+    movb $0, charDeAfisat
+    et_bytes_to_afisare:
+    cmpl $0, %ecx  
+    jl et_bytes_to_afisare_final 
 
-    
+    movb $1, %al
+    and (%edi, %ebx, 1), %eax
+    shl %ecx, %al 
+    addl %eax, charDeAfisat
 
-    hopa: 
-    pushl %ecx
-    pushl $hexaScanf
+    decl %ecx 
+    incl %ebx
+
+    jmp et_bytes_to_afisare
+
+    et_bytes_to_afisare_final:
+
+    pushl charDeAfisat
+    push $hexaScanf
     call printf
-    popl %ebp 
-    popl %ebp
+    pop %ebp
+    pop %ebp 
 
     pushl $0
-    call fflush 
+    call fflush
     popl %ebp
 
-    incl %ebx 
     jmp et_afisare_hexa
 
     et_afisare_hexa_final:
-
-        
+   
 et_exit: 
     mov $1, %eax 
     mov $0, %ebx 
